@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Poppins", sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      .chart-section {
+        display: flex;
+        width: 570px;
+        height: 232px;
+        align-items: center;
+        border-radius: 8px;
+        border: 1px solid #434db8ed;
+      }
+
+      #chartContainer {
+        position: relative;
+        width: 270px;
+        height: 300px;
+      }
+
+      #percentageDisplay {
+        position: absolute;
+        top: 80%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 12px;
+        font-weight: 500;
+        color: #434db8;
+        background: #ecedf8;
+        padding: 6px 10px;
+        border-radius: 8px;
+      }
+
+      #totalDisplay {
+        width: 180px;
+        height: 86px;
+        position: absolute;
+        top: 54%;
+        left: 48%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: -1;
+      }
+
+      #totalDisplay .label-heading {
+        font-size: 12px;
+        color: #434db8;
+        font-weight: 600;
+      }
+
+      #totalDisplay .totalCount {
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      .status-container {
+        width: 289px;
+        height: 140px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .status-text {
+        font-size: 12px;
+        font-weight: 500;
+        color: #3c3838;
+      }
+
+      .status-color {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        border-radius: 4px;
+      }
+
+      .status-details {
+      }
+
+      .fade {
+        opacity: 0.3;
+      }
+
+      .highlight {
+        opacity: 1;
+      }
+      .status-label {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .status-details {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .status-details-script-count {
+        font-size: 12px;
+        font-weight: 600;
+        color: #3c3838;
+      }
+      .status-details-script-percentage {
+        font-size: 14px;
+        color: #434db8;
+        font-weight: 400;
+      }
+      .status-color {
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chart-section">
+      <div id="chartContainer">
+        <canvas id="canvas" width="300" height="265"></canvas>
+        <div id="totalDisplay">
+          <div class="label-heading"></div>
+          <div class="totalCount"></div>
+          <div id="percentageDisplay"></div>
+        </div>
+      </div>
+      <div class="status-container" id="statusContainer">
+        <div class="status-item">
+          <div class="status-label">
+            <div class="status-color" style="background-color: #016102"></div>
+            <div class="status-text">Passed</div>
+          </div>
+          <div class="status-details">
+            <div class="status-details-script-count"></div>
+            <div class="status-details-script-percentage"></div>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">
+            <div class="status-color" style="background-color: #c50303"></div>
+            <div class="status-text">Failed</div>
+          </div>
+          <div class="status-details">
+            <div class="status-details-script-count"></div>
+            <div class="status-details-script-percentage"></div>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">
+            <div class="status-color" style="background-color: #ff8b00"></div>
+            <div class="status-text">Warning</div>
+          </div>
+          <div class="status-details">
+            <div class="status-details-script-count"></div>
+            <div class="status-details-script-percentage"></div>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">
+            <div class="status-color" style="background-color: #3c3838"></div>
+            <div class="status-text">Skipped</div>
+          </div>
+          <div class="status-details">
+            <div class="status-details-script-count"></div>
+            <div class="status-details-script-percentage"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const values = {
+        passed: 30,
+        failed: 18,
+        warning: 20,
+        skipped: 12,
+      };
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const totalScripts = Object.values(values).reduce((a, b) => a + b, 0);
+      const minPercentage = 0.2;
+      const PI2 = Math.PI * 2;
+      const offset = Math.PI / 2;
+      const minAngle = (minPercentage / 100) * PI2;
+      const colors = ["#016102", "#C50303", "#FF8B00", "#3C3838"];
+      const labelArray = ["Passed", "Failed", "Warning", "Skipped"];
+      const valueArray = Object.values(values);
+      const flagGap = valueArray.filter((value) => value === 0).length === 3;
+      const gapPercentage = flagGap ? 0 : 1;
+      const gapAngle = (gapPercentage / 100) * PI2;
+      let arcs = [];
+
+      const donutChart = (
+        cx,
+        cy,
+        radius,
+        arcwidth,
+        values,
+        colors,
+        labels,
+        hoveredIndex = -1
+      ) => {
+        document.getElementById("percentageDisplay").innerText = "100%";
+        document.querySelector("#totalDisplay .label-heading").innerText =
+          "TOTAL";
+        document.querySelector("#totalDisplay .totalCount").innerText =
+          totalScripts + " Scripts";
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = arcwidth;
+        arcs = [];
+
+        let startAngle = offset;
+        let totalMinAngle = 0;
+        let remainingAngle =
+          PI2 - gapAngle * values.filter((value) => value > 0).length;
+        // Calculate the remaining angle after assigning minimum angles
+        values.forEach((value) => {
+          const valuePercentage = value / totalScripts;
+          let angle = valuePercentage * PI2;
+
+          if (value > 0) {
+            angle = Math.max(angle, minAngle);
+            totalMinAngle += minAngle;
+          }
+          remainingAngle -= angle;
+        });
+
+        // Adjust angles proportionally for the remaining space
+        let remainingScripts = totalScripts;
+        let adjustedIndex = 0;
+        for (let i = 0; i < values.length; i++) {
+          const value = values[i];
+          const valuePercentage = value / totalScripts;
+          let angle = valuePercentage * PI2;
+
+          if (value > 0) {
+            if (angle < minAngle) {
+              angle = minAngle;
+            } else {
+              angle +=
+                remainingAngle *
+                (valuePercentage / (remainingScripts / totalScripts));
+            }
+            const endAngle = startAngle + angle;
+            // Drawing  the arc here
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, startAngle, endAngle);
+            ctx.strokeStyle = colors[i];          
+            ctx.globalAlpha =
+              hoveredIndex === -1 || hoveredIndex === adjustedIndex ? 0.8 : 0.3;          
+            ctx.stroke();
+            //we Store the arc with its original index for reference to make extra arc
+            arcs.push({
+              startAngle,
+              endAngle,
+              value: values[i],
+              label: labels[i],
+              originalIndex: i,
+            });
+            startAngle = endAngle + gapAngle;
+            adjustedIndex++;
+          }
+        }
+
+        // Extra arc for the hovered section
+        if (hoveredIndex !== -1) {
+          const gap = 5;
+          const hoverArcWidth = arcwidth / 5;
+          const newRadius = radius + arcwidth / 2 + gap + hoverArcWidth / 2;
+          ctx.lineWidth = hoverArcWidth;
+          const hoveredArc = arcs[hoveredIndex];
+          ctx.beginPath();
+          ctx.arc(
+            cx,
+            cy,
+            newRadius,
+            hoveredArc.startAngle,
+            hoveredArc.endAngle
+          );
+          ctx.strokeStyle = colors[hoveredArc.originalIndex];
+          ctx.globalAlpha = 0.3;
+          ctx.stroke();
+        }
+      };
+
+      // mouse movement over the canvas
+      canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        const dx = mouseX - 130;
+        const dy = mouseY - 150;
+        let angle = Math.atan2(dy, dx) - offset;
+
+        if (angle < 0) {
+          angle += Math.PI * 2;
+        }
+
+        const hoveredArcIndex = arcs.findIndex((arc) => {
+          const startAngle =
+            (arc.startAngle - offset + Math.PI * 2) % (Math.PI * 2);
+          const endAngle =
+            (arc.endAngle - offset + Math.PI * 2) % (Math.PI * 2);
+
+          if (startAngle < endAngle) {
+            return angle >= startAngle && angle <= endAngle;
+          } else {
+            return angle >= startAngle || angle <= endAngle;
+          }
+        });
+
+        if (hoveredArcIndex !== -1) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          donutChart(
+            130,
+            150,
+            91,
+            20,
+            valueArray,
+            colors,
+            labelArray,
+            hoveredArcIndex
+          );
+          const hoveredArc = arcs[hoveredArcIndex];
+          // const percentage =Math.ceil((hoveredArc.value / totalScripts) * 100) + "%";
+          const percentage =
+            Math.max(1, Math.floor((hoveredArc.value / totalScripts) * 100)) +
+            "%";
+          const percentageDisplay =
+            document.getElementById("percentageDisplay");
+          percentageDisplay.innerText = percentage;
+          percentageDisplay.style.color = colors[hoveredArc.originalIndex];
+          percentageDisplay.style.backgroundColor = `rgba(${hexToRgb(
+            colors[hoveredArc.originalIndex]
+          )}, 0.3)`;
+          document.querySelector("#totalDisplay .label-heading").innerText =
+            hoveredArc.label.toUpperCase();
+          document.querySelector("#totalDisplay .totalCount").innerText =
+            hoveredArc.value + " Scripts";
+
+          const statusItems = document.querySelectorAll(".status-item");
+          statusItems.forEach((item, index) => {
+            if (index === hoveredArc.originalIndex) {
+              item.classList.add("highlight");
+              item.classList.remove("fade");
+            } else {
+              item.classList.add("fade");
+              item.classList.remove("highlight");
+            }
+          });
+        } else {
+          resetChart();
+        }
+      });
+
+      // Handle mouse leaving the canvas
+      canvas.addEventListener("mouseleave", () => {
+        resetChart();
+      });
+
+      // Update status items with correct script counts and percentages
+      const updateStatusItems = () => {
+        const statusItems = document.querySelectorAll(".status-item");
+        statusItems.forEach((item) => {
+          const label = item
+            .querySelector(".status-text")
+            .innerText.toLowerCase();
+          const count = values[label];
+          // const percentage =
+          //   count === 0
+          //     ? 0
+          //     : Math.ceil((count / totalScripts) * 100);
+
+          const percentage =
+            count === 0
+              ? 0
+              : Math.max(1, Math.floor((count / totalScripts) * 100));
+
+          item.querySelector(".status-details-script-count").innerText =
+            count + " Scripts";
+          item.querySelector(".status-details-script-percentage").innerText =
+            "(" + percentage + "%)";
+        });
+      };
+
+      // Reset chart and update status items when mouse leaves the canvas
+      const resetChart = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        donutChart(130, 150, 91, 20, valueArray, colors, labelArray);
+        updateStatusItems();
+
+        document.getElementById("percentageDisplay").innerText = "100%";
+        document.getElementById("percentageDisplay").style.color = "#434db8";
+        document.getElementById("percentageDisplay").style.backgroundColor =
+          "#ecedf8";
+        document.querySelector("#totalDisplay .label-heading").innerText =
+          "TOTAL";
+        document.querySelector("#totalDisplay .totalCount").innerText =
+          totalScripts + " Scripts";
+
+        const statusItems = document.querySelectorAll(".status-item");
+        statusItems.forEach((item) => {
+          item.classList.remove("highlight");
+          item.classList.remove("fade");
+        });
+      };
+
+      // Function to convert hex colors to RGB format
+      const hexToRgb = (hex) => {
+        const bigint = parseInt(hex.substring(1), 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return `${r}, ${g}, ${b}`;
+      };
+
+      // Initial rendering of the chart
+      donutChart(130, 150, 91, 20, valueArray, colors, labelArray);
+      updateStatusItems();
+    </script>
+  </body>
+</html>
